@@ -1,0 +1,86 @@
+module Server where
+import System.IO
+import Control.Exception hiding (catch)
+import Control.Concurrent
+import Control.Monad (forM_)
+import Network
+import Data.List
+
+type Connection = (Handle, String, PortNumber)
+
+portNumber :: PortNumber
+portNumber = 3333
+
+prompt :: String
+prompt = "> "
+
+main :: IO ()
+main = bracket (listenOn $ PortNumber portNumber) sClose setup
+
+--updateMVar f mv = do x <- takeMVar mv
+--                     putMVar mv (f x)
+
+updateMVar :: MVar a -> (a -> a) -> IO ()
+updateMVar mv f = takeMVar mv >>= putMVar mv . f
+
+setup :: Socket -> IO ()
+setup socket = do mvMessages   <- newMVar []
+                  mvHandles    <- newMVar []
+                  mvNewMessage <- newEmptyMVar
+                  putStrLn "Created MVars"
+                  let mvs = (mvMessages, mvHandles, mvNewMessage)
+                  forkIO $ displayMessages mvs
+                  acceptConnections socket mvs
+
+acceptConnections :: Socket -> (MVar [String], MVar [Handle], MVar ()) -> IO ()
+acceptConnections socket mvs@(mvMessages, mvHandles, mvNewMessage) = do connection@(handle, name, port) <- accept socket
+                                                                        addHandle handle mvs
+                                                                        messages <- readMVar mvMessages
+                                                                        mapM_ (printMessage handle) messages
+                                                                        forkIO $ catch (handleClient connection mvs `finally` closeConnection connection mvs) (\exception -> print exception)
+                                                                        acceptConnections socket mvs
+
+
+handleClient :: Connection -> (MVar [String], MVar [Handle], MVar ()) -> IO ()
+handleClient connection@(handle, _, _) mvs = do hPutStr handle prompt
+                                                hFlush handle
+                                                input <- hGetLine handle
+                                                handleInput connection mvs input
+
+handleInput :: Connection -> (MVar [String], MVar [Handle], MVar ()) -> String -> IO ()
+handleInput connection@(handle, _, _) mvs@(mvMessages, _, mvNewMessage) input = case (input \\ "\r") of
+                                                                                  "q" -> return ()
+                                                                                  _   -> do addMessage input mvs
+                                                                                            handleClient connection mvs
+
+addMessage :: String -> (MVar [String], MVar [Handle], MVar ()) -> IO ()
+addMessage message (mvMessages, _, mvNewMessage) = do putStrLn $ "Adding message: " ++ show message
+                                                      updateMVar mvMessages (message:)
+                                                      putMVar mvNewMessage ()
+                                                      return ()
+
+addHandle :: Handle -> (MVar [String], MVar [Handle], MVar ()) -> IO ()
+addHandle handle (_, mvHandles, _) = do putStrLn $ "Adding handle: " ++ show handle
+                                        updateMVar mvHandles (handle:)
+
+displayMessages :: (MVar [String], MVar [Handle], MVar ()) -> IO ()
+displayMessages mvs@(mvMessages, mvHandles, mvNewMessage) = do putStrLn "Waiting for messages..."
+                                                               takeMVar mvNewMessage
+                                                               messages <- readMVar mvMessages
+                                                               handles  <- readMVar mvHandles
+                                                               putStrLn (show handles)
+                                                               putStrLn (show messages)
+                                                               mapM_ (flip printMessages messages) handles
+                                                               displayMessages mvs
+
+printMessages :: Handle -> [String] -> IO ()
+printMessages h ms = mapM_ (printMessage h) $ (reverse . take 10) ms
+
+printMessage :: Handle -> String -> IO ()
+printMessage h m = hPutStrLn h m >> hFlush h
+
+closeConnection :: Connection -> (MVar [String], MVar [Handle], MVar ()) -> IO ()
+closeConnection connection@(handle, _, _)  mvs@(_, mvHandles, _) = do putStrLn $ show handle ++ " is leaving."
+                                                                      updateMVar mvHandles (delete handle)
+                                                                      hClose handle
+
