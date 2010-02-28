@@ -42,10 +42,7 @@ acceptConnections socket mvs@(mvMessages, mvHandles, mvNewMessage) = do connecti
 
 
 handleClient :: Connection -> (MVar [String], MVar [Handle], MVar ()) -> IO ()
-handleClient connection@(handle, _, _) mvs = do hPutStr handle prompt
-                                                hFlush handle
-                                                input <- hGetLine handle
-                                                handleInput connection mvs input
+handleClient connection@(handle, _, _) mvs = hGetLine handle >>= handleInput connection mvs
 
 handleInput :: Connection -> (MVar [String], MVar [Handle], MVar ()) -> String -> IO ()
 handleInput connection@(handle, _, _) mvs@(mvMessages, _, mvNewMessage) input = case (input \\ "\r") of
@@ -76,6 +73,8 @@ displayMessages mvs@(mvMessages, mvHandles, mvNewMessage) = do putStrLn "Waiting
 printMessages :: Handle -> [String] -> IO ()
 printMessages h ms = do hClearScreen h
                         mapM_ (printMessage h) $ (reverse . take 10) ms
+                        hPutStr h prompt
+                        hFlush h
 
 printMessage :: Handle -> String -> IO ()
 printMessage h m = hPutStrLn h m >> hFlush h
