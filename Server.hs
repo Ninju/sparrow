@@ -8,8 +8,8 @@ import Data.List
 
 type Connection = (Handle, String, PortNumber)
 
-main :: IO ()
-main = bracket (listenOn $ PortNumber portNumber) sClose setup
+run :: IO ()
+run = bracket (listenOn $ PortNumber portNumber) sClose setup
 
 portNumber :: PortNumber
 portNumber = 3333
