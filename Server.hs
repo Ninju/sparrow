@@ -8,17 +8,14 @@ import Data.List
 
 type Connection = (Handle, String, PortNumber)
 
+main :: IO ()
+main = bracket (listenOn $ PortNumber portNumber) sClose setup
+
 portNumber :: PortNumber
 portNumber = 3333
 
 prompt :: String
 prompt = "> "
-
-main :: IO ()
-main = bracket (listenOn $ PortNumber portNumber) sClose setup
-
---updateMVar f mv = do x <- takeMVar mv
---                     putMVar mv (f x)
 
 updateMVar :: MVar a -> (a -> a) -> IO ()
 updateMVar mv f = takeMVar mv >>= putMVar mv . f
@@ -36,7 +33,7 @@ acceptConnections :: Socket -> (MVar [String], MVar [Handle], MVar ()) -> IO ()
 acceptConnections socket mvs@(mvMessages, mvHandles, mvNewMessage) = do connection@(handle, name, port) <- accept socket
                                                                         addHandle handle mvs
                                                                         messages <- readMVar mvMessages
-                                                                        mapM_ (printMessage handle) messages
+                                                                        printMessages handle messages
                                                                         forkIO $ catch (handleClient connection mvs `finally` closeConnection connection mvs) (\exception -> print exception)
                                                                         acceptConnections socket mvs
 
