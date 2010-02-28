@@ -1,1 +1,10 @@
-haskell port of mire
+= Instructions
+
+To compile:
+  ghc --make Main.hs -o chat
+
+This will create a 'chat' script that you can run.
+
+= Notes
+
+Does not currently work for Windows as far as I am aware.
