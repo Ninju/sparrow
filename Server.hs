@@ -17,6 +17,9 @@ portNumber = 3333
 prompt :: String
 prompt = "> "
 
+hClearScreen :: Handle -> IO ()
+hClearScreen h = hPutStrLn h "\ESC[2J\ESC[H"
+
 updateMVar :: MVar a -> (a -> a) -> IO ()
 updateMVar mv f = takeMVar mv >>= putMVar mv . f
 
@@ -71,7 +74,8 @@ displayMessages mvs@(mvMessages, mvHandles, mvNewMessage) = do putStrLn "Waiting
                                                                displayMessages mvs
 
 printMessages :: Handle -> [String] -> IO ()
-printMessages h ms = mapM_ (printMessage h) $ (reverse . take 10) ms
+printMessages h ms = do hClearScreen h
+                        mapM_ (printMessage h) $ (reverse . take 10) ms
 
 printMessage :: Handle -> String -> IO ()
 printMessage h m = hPutStrLn h m >> hFlush h
